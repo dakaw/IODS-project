@@ -2,3 +2,15 @@
 # About the project
 
 *Write a short description about the course and add a link to your GitHub repository here. This is an R Markdown (.Rmd) file so you can use R Markdown syntax.*
+
+## Introduction to Open Data Science.
+
+
+### My expectations for IODS
+
+I am working on my research plan and I need to do some preliminary data exploration in the data from the Finnish National Election Studies. This course conveniently came up in WebOodi and seems to cover the tools I will need to start working with the data. I have had some previous experience with data science from a course that used Python,  but I didn’t complete the course because it moved so fast from the basics to things like machine learning that I couldn’t keep up. From what I can see so far, this course seems to have a more realistic scope for an introduction and R will probably be very useful for me.
+
+### Repository link
+
+Link to my repository: [https://github.com/dakaw/IODS-project]
+
