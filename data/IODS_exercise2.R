@@ -38,7 +38,3 @@ library(ggplot2)
   write.table(lrn2014, file = "data/analysis_lrn2014.csv", sep = ";")
   str(read.table("data/analysis_lrn2014.csv", sep = ";"))
   # Output shows the correct dimensions (166 obs. of 7 varables)  
-  
-# Graphical overview of the data
-  ggpairs(lrn2014)
-  
