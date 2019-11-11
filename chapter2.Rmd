@@ -1,7 +1,84 @@
-# Insert chapter 2 title here
+# Regression and model validation
 
 *Describe the work you have done this week and summarize your learning.*
 
 - Describe your work and results clearly. 
 - Assume the reader has an introductory course level understanding of writing and reading R code as well as statistical methods.
 - Assume the reader has no previous knowledge of your data or the more advanced methods you are using.
+
+This week we have learned how to examine the structure and dimensions of a dataset, how to plot desciptive statistics and correlations between the variables and how to fit linear regression models to the data. Furthermore, we have examined how to run diagnostic analysis on the fitted model in order to examine the underlying assumptions of for examoke normally distributed residuals and constant variance in the residuals.
+
+Below is exersice 2, where we wrangle a dataset, fit a linear regression model and analyse the model's underlying assumptions.
+
+## Data analysis for Data Studio Exercise 2
+
+```{r}
+library(dplyr)
+library(GGally)
+library(ggplot2)
+```
+
+
+### Data and structure
+First, we read the data set and look at the data structure. I will use the file I generated in the data wrangling exercise.
+```{r}
+my_data <- read.table("data/analysis_lrn2014.csv", sep = ";")
+str(my_data)
+```
+
+The data set consists of 166 observations of students. We measure 7 variables about each student, starting with age and gender. The variable 'attitude' measures the student's global attitude towards statistics. Then follows three measures of the student's abilities for deep learning, strategic learning and surface learning. These three measures are the mean value of several other questions in the original data material. Finally, the 'points' variable measures the students exam points.
+
+### Graphical overview and initial interpretation
+
+I will use the ggpairs function to generate matrix plot of the distributions and correlations between all variables.
+
+```{r}
+ggpairs(my_data, mapping = aes(col = my_data$gender, alpha=0.3),lower = list(combo = wrap("facethist", bins = 20)))
+```
+
+We can make the following general observations of the data
+- There are twice as many women in the observations as men
+- Most of the students are under 30 years old
+- Men have a slightlu more positive attitude towards statistics while women score slightly better in strategic and surface learning.
+- The variables with the greates correlations to points on the test are attitude (0.437), strategic learning (0.146) and surface learning (-0,144)
+- There are weak positive correlations between deep learning, strategic learning and attitude. At the same time, all correlations are negative with surface learning. This indicates that students with a positive attitude also tend to have more developed strategic and deep learning abilities, and out of those especially a positive attitude and strategic learning predict better scores on the test while deep learning does not affect test results more than marginally. Students with less postitive attitudes tend to be better at surface learning and score worse in the test.
+
+From these observations we can fit a regression model.
+
+### Regression model
+
+Which variables explain better scores on the test? From the previous analysis, we can see that attitude and strategich learning have the strongest positive correlations with points, while surface learning has the third strongest but negative correlation. We use these three variables as explanatory variables and points as the target variable to fit a regression model:
+
+```{r}
+model <- lm(points ~ attitude + stra + surf, data = my_data)
+summary(model)
+```
+
+From the above model summary, we can see that only the intercept and attitude where statistically significant. The likelihood that the correlation between the variables is due to chance is less than 0,1% for attitude and less than 1% for attitude. However, effect of strategic and surface learning is not sufficiently statistically significant. I will therefore remove them from the model and fit a new model with only attitude as an explanatory variable.
+
+
+```{r}
+model <- lm(points ~ attitude, data = my_data)
+summary(model)
+```
+
+From the above model, we see that each point in attitude increases the test result with 0.35 points. The R-squared value shows 0.19, meaning that 19% of the variation in test scores can be explained by the students attitude towards statistics.
+
+### Model assumptions and diagnostics
+
+The proposed model rests on the assumptions that there is a linear correlation between the variables and that the errors are normaly distributed. Hypothetically, the distibution and size of errors could be dependent on the explanatory variable or have varying variance. To test these assumptions, I will run three diagnostic plots.
+
+#### Residuals vs Fitted
+The Residuals vs Fitted values plot shows if the variance in the residuals is affected by the fitted values. There seems to be no discernable pattern in the plot indicating thet the variance is affected by the fitted values. The assumption of constant variance can be retained.
+
+#### Q-Q plot
+The Q-Q plot shows that the residuals are of a similar size for most quantiles along the regression line. However, at both the lower and upper end of the theoretical quantiles, the residuals move away from the line. My interpretation is that the models assumptions are correct for the most part except for very high and very low values on the explanatory variable. In other words, if the students attitude towards statistics is either extremly high or extremly low, the assumption that errors are normally distributed no longer holds.
+
+#### Residuals vs Leverage
+In the Residuals vs Leverage plot we can observe if any observation has an unusually high leverage on the model. The plot shows no such outliers, so there is no need to adapt the model och remove outliers from the data.
+
+```{r}
+plot(model, which = c(1,2,5))
+```
+
+
