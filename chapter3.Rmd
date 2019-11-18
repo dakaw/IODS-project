@@ -1,0 +1,187 @@
+# IODS 3: Logistic regression
+Daniel Kawecki 16.11.2019
+Data on student performance and alcohol consumtion from https://archive.ics.uci.edu/ml/datasets/Student+Performance
+
+```{r}
+# access libraries
+library(dplyr)
+library(ggplot2)
+```
+
+## Reading the data
+First, we read the data from the local file
+
+```{r}
+alc <- read.table(file = "data/alc.csv", sep = ";", header = TRUE)
+glimpse(alc)
+```
+
+The data contains 385 observations of 35 variables related to the students life, health, school results and alcohol consumtion. An avarage alcolol consumtion (alc_use) was calculated from the reported consumtion during weekdays and weekends. If this value is more than 2, the student is categorized as having a high alcohol comsumtion (high_use = TRUE).
+
+## Hypotheses
+Next step is to select four variables that might be connected to alcohol use. From studying the data descriptions in the student.txt file , I have picked the following variables:
+
+**1) goout - going out with friends (numeric: from 1 - very low to 5 - very high)**
+  
+**Hypothesis 1:** Drinking is a social activity. High alcohol use will be more common among people who go out with their friends often.
+
+**2) health - current health status (numeric: from 1 - very bad to 5 - very good)**
+
+**Hypothesis 2:** Alcohol use increases health risks, therefore health will be worse among people with high alcohol consumtion.
+
+**3) famrel - quality of family relationships (numeric: from 1 - very bad to 5 - excellent)**
+
+**Hypothesis 3:** High alcohol use will either be caused by bad family relationships or it will make family relationships worse, therefore a low quality of family relationships will correlate with high use of alcohol.
+
+**4) romantic - with a romantic relationship (binary: yes or no)**
+
+**Hypothesis 4:** When involved in a romantic relationship there is less loneliness and less time to spend with friends, which are both situations where use of alcohol is probable. Therefore being involved in a romantic relationship will decrease high alcohol use.
+
+
+## Data exploration
+
+First, I will plots of the relations between the binary high_use (T/F) and the explanatory variables
+
+```{r}
+g1 <- ggplot(alc, aes(x = high_use, y = goout))
+g2 <- ggplot(alc, aes(x = high_use, y = health))
+g3 <- ggplot(alc, aes(x = high_use, y = famrel))
+g4 <- ggplot(alc, aes(x = romantic, y = high_use))
+
+g1 + geom_boxplot() + ggtitle("Plot 1. Student 'going out with friends' by alcohol consumption")
+g2 + geom_boxplot() + ggtitle("Plot 2. Student health by alcohol consumption")
+g3 + geom_boxplot() + ggtitle("Plot 3. Family relations by student alcohol consumption")
+g4 + geom_count() + ggtitle("Plot 4. Romantic relationship by alcohol consumption")
+```
+
+The last explanatory variable is binary. Visual inspection of the plot won't be enough to determine any trends. I will make a table and calculate proportions for the columns to determine if a larger proportion among students without a romantic relationship are prone to high alcohol use. The table below shows a small difference between the groups.
+
+```{r}
+table(high_use = alc$high_use, romantic = alc$romantic) %>% prop.table(margin = 2) %>% addmargins()
+```
+
+
+## Preliminary analysis based on the plots
+From studying the plots a few preliminary conclusions can be drawn about the hypotheses.
+  
+**Hypothesis 1:** Drinking is a social activity. High alcohol use will be more common among people who go out with their friends often.
+
+**Preliminary analysis:** True. The boxplot shows a clear difference in high alcohol use between those who go out often with friends and those who don't.
+
+**Hypothesis 2:** Alcohol use increases health risks, therefore health will be worse among people with high alcohol consumtion.
+
+**Preliminary analysis:** False. The boxplot shows no difference in health between high and low users of alcohol.
+
+**Hypothesis 3:** High alcohol use will either be caused by bad family relationships or it will make family relationships worse, therefore a low quality of family relationships will correlate with high use of alcohol.
+
+**Preliminary analysys:** True. The boxplot indicates that family relationships are worse among high alcohol users.
+
+**Hypothesis 4:** When involved in a romantic relationship there is less loneliness and less time to spend with friends, which are both situations where use of alcohol is probable. Therefore being involved in a romantic relationship will decrease high alcohol use.
+
+**Preliminary analysis:** Inconclusive. The trend indicates a small difference (27% high users in the group with a romantic relationship versus 31% in the group without) in favor of the hypothesis,
+
+## Fitting a logistic regression model
+In the next step, I will fit a regression model with the variables to see which ones have statistical significance.
+
+```{r}
+# find the model with glm()
+m <- glm(high_use ~ goout + health + famrel + romantic, data = alc, family = "binomial")
+# print out a summary of the model
+summary(m)
+
+# print out the coefficients of the model
+coef(m)
+```
+
+From the above regression model, we can see that **goout** and **famrel** have statistically significant effects. The variable **health** also points to a positive correlation, but the significance level is too low to include the variable in the final model. The effect of having a romantic relationship is not statistically significant.
+
+Based on the above observations, I will create a new model with the 'goout' and 'famrel' variables.
+
+```{r}
+# find the model with glm()
+m2 <- glm(high_use ~ goout + famrel, data = alc, family = "binomial")
+# print out a summary of the model
+summary(m2)
+
+# print out the coefficients of the model
+coef(m2) %>% exp
+```
+From the above estimates we can see that going out often with friends is positivly correlated with high alcohol use. Having good family relationships is negativly correlated with high alcohol use.
+
+Next, I will test the predictive power of the model
+
+## Predicting results with the model
+
+First, I will use the predict() function to calculate the probabilities for each of the observations based on the model. I am using the code from the data camp exercise for this. The probabilities will be stored in a new column that is added to the data frame.
+
+```{r}
+
+# predict() the probability of high_use
+probabilities <- predict(m2, type = "response")
+
+# add the predicted probabilities to 'alc'
+alc <- mutate(alc, probability = probabilities)
+
+# use the probabilities to make a prediction of high_use
+alc <- mutate(alc, prediction = (probability > 0.5))
+
+# see the last ten original classes, predicted probabilities, and class predictions
+select(alc, goout, famrel, high_use, probability, prediction) %>% tail(10)
+
+```
+In order to see how the predictions turn out, I will tabulate the predictions and the actual values of the target variable.
+
+```{r}
+# tabulate the target variable versus the predictions
+table(high_use = alc$high_use, prediction = alc$prediction)
+```
+
+The above table shows that the prediction turned out to be correct in a majority of the cases. I will make a proportional table to get more information.
+
+```{r}
+# tabulate the target variable versus the predictions
+table(high_use = alc$high_use, prediction = alc$prediction) %>% prop.table %>% addmargins
+```
+
+From the above we can se that our predictions matched the results in about 76% of the cases (0.636 + 0.120 = 0.756.
+
+Here is a graphical representation of the results:
+```{r}
+# initialize a plot of 'high_use' versus 'probability' in 'alc'
+g5 <- ggplot(alc, aes(x = probability, y = high_use, col = prediction))
+
+# define the geom as points and draw the plot
+g5 + geom_point()
+
+
+```
+
+
+Finally we will calculate the training error. I already manually computed that about 76% och the predictions were correct, so the training error should be around 24%. I will use the function fron the Data Camp exercise.
+
+```{r}
+# define a loss function (mean prediction error)
+loss_func <- function(class, prob) {
+  n_wrong <- abs(class - prob) > 0.5
+  mean(n_wrong)
+}
+
+# call loss_func to compute the average number of wrong predictions in the (training) data
+loss_func(class = alc$high_use, prob = alc$probability)
+```
+
+The training error is 0.2434555, i.e. about 24% as expected.
+
+I will end the analysis by performing the first bonus task: a 10-fold cross-validation on the model using the cv function.
+```{r}
+# K-fold cross-validation
+library(boot)
+cv <- cv.glm(data = alc, cost = loss_func, glmfit = m, K = 10)
+
+# average number of wrong predictions in the cross validation
+cv$delta[1]
+```
+
+The result is 0.267. This model doesn't performe better than the model introduced in the Data Camp exercise.
+
+With this I will end the analysis, feeling that I have reached the end of both available time for further analysis and of my level of insight in the subject so far.
