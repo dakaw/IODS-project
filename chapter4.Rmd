@@ -1,0 +1,199 @@
+# IODS Exercise 4
+Daniel Kawecki 24.11.2019
+
+```{r}
+
+# load MASS and Boston
+  library(MASS)
+  data('Boston')
+
+#Load ggplot2, GGally and dplyr
+  library(ggplot2)
+  library(GGally)
+  library(dplyr)
+```
+
+## Data overview
+```{r}
+dim(Boston)
+str(Boston)
+summary(Boston)
+```
+The data frame contains data about 506 towns/suburbs in the Boston area. The 14 variables describe various housing, demographic, structural and social aspects of each town.
+
+## Graphical overview of the data
+
+To explore the data further I will create histograms for each variable. Then I will to a plot matrix to explore the correlations. We are mainly interested in the crime variable and a correlation matrix of all 14 variables will be difficult to read. I will therefore split the task and correlate crime to the other variables in three groups.
+
+```{r}
+#Loop through the 14 columns
+for (i in 1:14) {
+  #Create histogram for each column
+    hist(x = Boston[,i], main = colnames(Boston)[i])
+}
+
+
+```
+
+The histograms show that almost none of the variables are normally distributed, the exception being rm (avarage rooms per dwelling), which is normally distributed around 6 rooms as the mean. Crime rate is extremly skewed to the negative side; a majority of the town having a very low crime rate and only a very small part of the set having larger crime rates. It also seems to be large divides in some cases, for example both property tax values and access to radial highways are normally distributed in the low end, then there is a large gap and a substantial amount of towns with very high measures on the variables.
+
+Next, let's look at the correlations with crime rate. I will also color accoring to proximity to the Charles River to detect any potential patterns through this dummy variable. I will end with a correlation plot for all variables.
+
+```{r}
+ggpairs(Boston, columns = c("crim", "zn","nox","rm"), mapping = aes(col=as.factor(chas), alpha=0.5, legend = TRUE))
+ggpairs(Boston, columns = c("crim", "age","dis","rad"), mapping = aes(col=as.factor(chas), alpha=0.5, legend = TRUE))
+ggpairs(Boston, columns = c("crim", "tax","ptratio","black"), mapping = aes(col=as.factor(chas), alpha=0.5, legend = TRUE))
+ggpairs(Boston, columns = c("crim", "lstat","medv","indus"), mapping = aes(col=as.factor(chas), alpha=0.5, legend = TRUE))
+ggcorr(Boston)
+
+```
+
+If we focus on crime rate we see that the variables with the greatest correlations are the median value of property tax and access to radial highways. From the correlation plot, we can see that those variables are also highly correlated: towns with good access to radial highways also have the highest value property. From this we can hypothesize that high propery value attracts criminals and crimes. The question is if high property value also attracts highways, is caused by highways or if the highways are a necessary route of transport for the criminals to the wealthy towns. 
+
+## Standardize the dataset
+
+Next, the dataset will be standardized. As the summaries below show, the mean value of all variables is now 0 in the standardized data and the variable scales have changed.
+
+```{r}
+boston_scaled = scale(Boston)
+# change the object to data frame
+boston_scaled <- as.data.frame(boston_scaled)
+summary(Boston)
+summary(boston_scaled)
+```
+
+## Create categorical variable from crime
+
+The categorical variable will divide the observation in four equally lare parts based on the quantiles of the data. Each part of the observations will be labled from low to high.
+```{r}
+#Create the bins based on quantiles
+bins <- quantile(boston_scaled$crim)
+
+# create a categorical variable 'crime'
+crime <- cut(boston_scaled$crim, breaks = bins, include.lowest = TRUE, label = c("low","med_low","med_high","high"))
+
+# look at the table of the new factor crime
+table(crime)
+
+# remove original crim from the dataset
+boston_scaled <- dplyr::select(boston_scaled, -crim)
+
+# add the new categorical value to scaled data
+boston_scaled <- data.frame(boston_scaled, crime)
+```
+
+ 
+## Divide the dataset to train and test sets
+80% of the observations will be used for training the model to make predictions and 20% will be used to test the predictions.
+
+```{r}
+# number of rows in the Boston dataset 
+n <- nrow(boston_scaled)
+
+# choose randomly 80% of the rows
+ind <- sample(n,  size = n * 0.8)
+
+# create train set
+train <- boston_scaled[ind,]
+
+# create test set 
+test <- boston_scaled[-ind,]
+
+# save the correct classes from test data
+correct_classes <- test$crime
+
+# remove the crime variable from test data
+test <- dplyr::select(test, -crime)
+```
+
+## Fit the linear discriminant analysis on the train set
+We fit a linear discriminant analysis using all variables on crime as target variable.
+
+```{r}
+# linear discriminant analysis
+lda.fit <- lda(crime ~ ., data = train)
+
+# print the lda.fit object
+lda.fit
+
+# the function for lda biplot arrows
+lda.arrows <- function(x, myscale = 1, arrow_heads = 0.1, color = "red", tex = 0.75, choices = c(1,2)){
+  heads <- coef(x)
+  arrows(x0 = 0, y0 = 0, 
+         x1 = myscale * heads[,choices[1]], 
+         y1 = myscale * heads[,choices[2]], col=color, length = arrow_heads)
+  text(myscale * heads[,choices], labels = row.names(heads), 
+       cex = tex, col=color, pos=3)
+}
+
+# target classes as numeric
+classes <- as.numeric(train$crime)
+
+# plot the lda results
+plot(lda.fit, dimen = 2, col = classes, pch = classes)
+lda.arrows(lda.fit, myscale = 2)
+```
+
+We can see that LD1 accounts for almost 95% of the variation between the categories of crume, and the variable that loads highest on this dimension is access to highways. A preliminary interpretation could be that access to highways increases both property value and crime rates in a town.
+
+## Prediction
+Based on the model, we predict the outcome from the test data and compare to the actual values of the test data.
+```{r}
+lda.pred <- predict(lda.fit, newdata = test)
+table(correct = correct_classes, predicted = lda.pred$class)
+```
+
+The fitted model predicts high and low crime rates very well, but seems to be less accurate in predicting the medium categories. The question the is if four categories of crime are a useful way of categorizing crime.
+
+## K-means
+Next, we run a K-means analysis to examine the optimal level of clusters in the original crime data.
+
+First, the variables are standardized and the euclidian distances to the center are calculated. 
+
+```{r}
+data('Boston')
+boston_scaled2 = scale(Boston)
+# change the object to data frame
+boston_scaled2 <- as.data.frame(boston_scaled2)
+
+# euclidean distance matrix
+dist_eu <- dist(Boston)
+
+# look at the summary of the distances
+summary(dist_eu)
+```
+
+Then I run the K-means to determine the number of clusters. First we plot the sum of squares for clusters 1-10 clusters.
+```{r}
+set.seed(123)
+
+# determine the number of clusters
+k_max <- 10
+
+# calculate the total within sum of squares
+twcss <- sapply(1:k_max, function(k){kmeans(boston_scaled2, k)$tot.withinss})
+
+# visualize the results
+qplot(x = 1:k_max, y = twcss, geom = 'line')
+```
+
+From the plot, we see that there is a decline in the slop after 2 clusters and no clear change in the slope after that. The plot indicates that 2 clusters is an optimal amount.
+
+Next, I visualise the data clustered around 2 centers.
+
+```{r}
+# k-means clustering
+km <-kmeans(Boston, centers = 2)
+
+# plot the Boston dataset with clusters
+
+ggpairs(boston_scaled2, columns = c("crim", "zn","nox","rm"), mapping = aes(col=as.factor(km$cluster), alpha=0.5, legend = TRUE))
+ggpairs(boston_scaled2, columns = c("crim", "age","dis","rad"), mapping = aes(col=as.factor(km$cluster), alpha=0.5, legend = TRUE))
+ggpairs(boston_scaled2, columns = c("crim", "tax","ptratio","black"), mapping = aes(col=as.factor(km$cluster), alpha=0.5, legend = TRUE))
+ggpairs(boston_scaled2, columns = c("crim", "lstat","medv","indus"), mapping = aes(col=as.factor(km$cluster), alpha=0.5, legend = TRUE))
+```
+
+## Conclusions 
+The visualizations seem to capture the fact that the main divide in crime rates is between the towns with minimal crime rates and those with higher. The cases of extreme crime rates are so few, that it seems questionable to consider them a cluster of their own.
+
+I will not do the bonus tasks due to time constraints.
