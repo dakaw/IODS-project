@@ -1,0 +1,114 @@
+# IODS Exercise 5
+Daniel Kawecki 24.11.2019
+
+
+## Load libraries and data
+```{r}
+human <- read.table("data/human2.csv", header = TRUE, sep = ";")
+library(ggplot2)
+library(tidyr)
+library(GGally)
+```
+
+## Overview
+
+The numerical overview below shows that the data consists of 155 observations of 8 variables pertaining to the national income of countries, education, life and health and the situation of women. Each observation is a separate country. Countries with missing values have been dropped. All values are numerical or integer. Country names work as row names.
+
+The histograms show that the variables are either normally distributed or skewed to a lesser or greater degree. No bimodal distributions are found.
+
+The plot matrix and correlation matrix show noteworthy correlations between several of the variables, for example between maternal mortality ratio and life expectancy (-0,857), life expectancy and educational expectancy (0,789), Adolescent birth rate and Maternal mortality (0,759).
+
+```{r}
+#Numerical overviews
+  str(human)
+  summary(human)
+  head(human)
+
+#Histograms
+  human %>% gather %>% ggplot(aes(value)) + facet_wrap(~ key, scales = "free") + geom_histogram()
+
+# Plot matrix
+  ggpairs(data = human)
+
+# Correlation plots
+  ggcorr(human)
+
+```
+
+## A principal components analysis on unscaled data
+
+Since so many of the variables seem to be interrelated, I perform a principal component analysis to see if there are underlying dimensions that explain most of the variation in the data. To begin with, the analysis is performed on unscaled data.
+
+```{r}
+# perform principal component analysis (with the SVD method)
+pca_human <- prcomp(human)
+summary(pca_human)
+pca_human
+
+# draw a biplot of the principal component representation and the original variables
+biplot(pca_human, choices = 1:2, cex = c(0.4, 1), col = c("grey40", "deeppink2"))
+
+```
+
+The principal component analysis on unscaled data results in a disproportionate loading of GNI on tha first principal component due to GNI being measured on a numerical scale much greater than the other variables. This leaves only 0.01% of the variance to be explained by PC2, which seems unrealistic.
+
+
+## A principal components analysis on scaled data
+
+A new principal component analysis on scaled data will be done.
+
+```{r}
+# Scale data and perform principal component analysis (with the SVD method)
+human_std <- scale(human)
+pca_human_std <- prcomp(human_std)
+summary(pca_human_std)
+pca_human_std
+
+# draw a biplot of the principal component representation and the original variables
+biplot(pca_human_std, choices = 1:2, cex = c(0.4, 0.8), col = c("grey40", "deeppink2"), xlab = "PC1: Prosperity", ylab = "PC2: Equal participation")
+
+```
+
+The PCA on scaled data finds PC1 that explains about 54% of the variance in the variables and PC2 that explains about 16%.
+
+The variables loading on PC1 are expected education, the rate of women to men in secondary education, life expectancy, GNI, maternal mortality and adolescent births. This dimension seems to represent the general level of prosperity in a country. The variables that load on PC2 are percentage of females in parliment and the ratio of females to men in the labour market. This dimension seems to represent the degree to which men and women participate in society to an equal degree.
+
+A resonable interpretation of the results is that 70% of the variation in the variables is explained by a combination of general prosperity and equal participation in society between the genders.
+
+
+## Load Tea dataset from Factominer
+
+As shown below, the tea dataset contains 36 variables that are mostly categorical and concern different aspects of tea drinking. I will keep some of the variables and perform a multiple correspondance analysis to look for any patterns in tea drinking. For the sake of simplifying the exercise, I will use tha variables in the Data Camp example.
+
+```{r}
+library(FactoMineR)
+data(tea)
+
+str(tea)
+
+# column names to keep in the dataset
+keep_columns <- c("Tea", "How", "how", "sugar", "where", "lunch")
+
+# select the 'keep_columns' to create a new dataset
+tea_time <- dplyr::select(tea, one_of(keep_columns))
+
+# visualize the dataset
+gather(tea_time) %>% ggplot(aes(value)) + facet_wrap("key", scales = "free") + geom_bar() + theme(axis.text.x =  element_text(angle = 45, hjust = 1, size = 8))
+```
+
+## Multiple correspondance analysis on Tea data
+```{r}
+# multiple correspondence analysis
+mca <- MCA(tea_time, graph = FALSE)
+
+# summary of the model
+summary(mca)
+
+# visualize MCA
+plot(mca, invisible=c("ind"), habillage = "quali")
+
+```
+
+The first two dimensions explain only 29% of the variance. The horisontal dimension seems to differentiate between tea drinkers who buy standard tea bags in a chain stores and tea drinkers who buy unpackaged tea from tea shops, i.e. how and in what form the tea is obtained. 
+
+The vertical dimension seems to be related to how people drink their tea. On one end we have people who add milk, lemon and other things but who are agnostic to where and in what form the tea is obtained. On the other end we have those who either drink their chainstore teabags without added ingredients or those who drink their tea shop obtained and unpackaged green tea without anything extra.
